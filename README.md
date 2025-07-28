@@ -17,7 +17,22 @@ This Python script simulates ransomware behavior by encrypting a folder named `w
 
 ## How to Use
 
-1. **Install dependencies:**
+Prepare folder:
 
-```bash
-pip install -r requirements.txt
+Create a folder named work secrets {or a name of your choice} in the same directory and put files you want to simulate encrypting.
+
+Run the script:
+
+bash
+
+python gameapp.py
+Compile to EXE (optional):
+
+Use PyInstaller to create a Windows executable:
+
+bash
+
+pyinstaller --onefile --noconsole gameapp.py
+Disclaimer
+For educational use only. Do not run on systems or data without permission.
+
